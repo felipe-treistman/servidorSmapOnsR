@@ -1,3 +1,7 @@
+# plumber.R
+
+future::plan("multisession")
+
 # TODO - esta forma está bem ruim, podemos criar uma classe "Rodada"
 # e uma classe "Rodadas" para encapsular tudo isso.
 columns <- c("idSGPV", "dirBase", "urlCallback", "pid")

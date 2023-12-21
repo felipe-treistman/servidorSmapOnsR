@@ -7,18 +7,18 @@ Rest API do smapOnsR
 
 ## Instalação
 
-Este pacote ainda nao se encontra disponibilizado no CRAN, de modo que
-deve ser instalado diretamente a partir do repositorio utilizando:
+Os seguintes pacotes devem ser instalados:
 
 ``` r
 # install.packages("devtools")
-devtools::install_github("felipe-treistman/servidorSmapOnsR")
+# install.packages("plumber")
+# install.packages("httr")
+# install.packages("future")
+devtools::install_github("felipe-treistman/smapOnsR")
 ```
 
 Exemplo de como executar o servidor
 
-``` r
-library(servidorSmapOnsR)
-## Executar linha abaixo
-#cria_servidor()
-```
+```{r example}
+# chamada a ser realizada no terminal
+#R main.R
