@@ -10,6 +10,6 @@ cria_servidor <- function() {
 
     future::plan("multisession")
 
-    pr("R/plumber.R") %>%
+    pr(system.file("R", "plumber.R", package = "servidorSmapOnsR")) %>%
         pr_run(host = HOST, port = PORT, docs = FALSE, quiet = TRUE)
 }
