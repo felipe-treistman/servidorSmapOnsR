@@ -21,4 +21,4 @@ Exemplo de como executar o servidor
 
 ```{r example}
 # chamada a ser realizada no terminal
-#R main.R
+# run_main.bat
