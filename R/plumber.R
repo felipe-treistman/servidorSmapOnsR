@@ -1,17 +1,10 @@
-# plumber.R
 library(plumber)
-library(future)
-library(httr)
-
-future::plan("multisession")
-
 
 # TODO - esta forma está bem ruim, podemos criar uma classe "Rodada"
 # e uma classe "Rodadas" para encapsular tudo isso.
 columns <- c("idSGPV", "dirBase", "urlCallback", "pid")
 database <- data.frame(matrix(nrow = 0, ncol = length(columns)))
 colnames(database) <- columns
-
 
 #* Log some information about the incoming request
 #* @filter logger
@@ -91,7 +84,7 @@ function(req, res) {
     if (sucesso) {
         # Dispara o processo de execução da rodada usando
         # uma thread separada
-        fut <- future({
+        fut <- future::future({
             executa_smap(id, diretorio_caso, url_callback)
         })
 
@@ -218,7 +211,14 @@ executa_smap <- function(id, diretorio_caso, url_callback) {
         # Retorna qualquer coisa por enquanto
         saida <- "sucesso"
     } else {
+        # Limpar a rodada da lista de rodadas
+        PORT <- as.numeric(Sys.getenv("PORT"))
+
+        httr::POST(paste0("http://localhost:", PORT,"/limpar"), body = list(idSGPV = id))
         saida <- "falha"
+
+        # chamar o callback no final da execução
+        httr::GET(url_callback)
     }
     saida
 }

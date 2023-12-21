@@ -5,13 +5,15 @@ Authors@R:
     person("Felipe", "Treistman", , "felipe.treistman@gmail.com", role = c("aut", "cre"),
            comment = c(ORCID = "0000-0001-9948-8680"))
 Description: What the package does (one paragraph).
-License: `use_mit_license()`, `use_gpl3_license()` or friends to pick a
-    license
+License: MIT + file LICENSE
 Encoding: UTF-8
 Depends:
     R (>= 3.5)
 Imports:
-    plumber
+    plumber,
+    httr,
+    future,
+    smapOnsR
 Remotes: felipe-treistman/smapOnsR
 Roxygen: list(markdown = TRUE)
 RoxygenNote: 7.2.3
