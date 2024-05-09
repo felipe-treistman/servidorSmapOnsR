@@ -2,11 +2,19 @@
 
 future::plan("multisession")
 
+log <- function(msg) {
+    write.table(paste0("[", Sys.time(), "]  [SMAP/ONS] [RSERV] " , msg ), 
+        file = LOG,quote = FALSE, row.names = FALSE, col.names = FALSE, append = TRUE)
+}
+
 # TODO - esta forma está bem ruim, podemos criar uma classe "Rodada"
 # e uma classe "Rodadas" para encapsular tudo isso.
 columns <- c("idSGPV", "dirBase", "urlCallback", "pid")
 database <- data.frame(matrix(nrow = 0, ncol = length(columns)))
 colnames(database) <- columns
+
+
+log(paste0("Iniciando servico web na porta ", PORT))
 
 #* Log some information about the incoming request
 #* @filter logger
@@ -103,7 +111,10 @@ function(req, res) {
             idSGPV = id
         )
     }
-    
+
+    log(paste0("[REQ] Enviando resposta sincrona ao SGPV: ", 
+                "{'cod': ", execucao$cod, "'msg': ", execucao$msg, "'idSGPV': ", execucao$idSGPV, "}"))
+
     execucao
 }
 
@@ -164,8 +175,6 @@ function(req, res) {
 #* @post /limpar
 #* @serializer unboxedJSON
 function(req, res) {
-    id <- req$argsBody$idSGPV
-
     # Registra que não existe mais o ID
     id <- req$argsBody$idSGPV
     deleta_rodada(id)
@@ -179,15 +188,16 @@ function(req, res) {
 }
 
 
-
 # ==============================================================================
 # Funções auxiliares, para teste e debug
 
 
 #* Endpoint de teste para o callback do servidor
-#* @get /callback
+#* @post /callback
 #* @serializer unboxedJSON
 function(req, res) {
+    print("CALLBACK")
+    print(req$argsBody)
     "sucesso"
 }
 
@@ -200,27 +210,37 @@ deleta_rodada <- function(id) {
 
 executa_smap <- function(id, diretorio_caso, url_callback) {
     # Simula uma rodada de SMAP
+    log(paste0("[REQ] Requisicao recebida com sucesso IdSGPV=", id))
+
     if (dir.exists(diretorio_caso)) {
-        try(smapOnsR::executa_caso_oficial(diretorio_caso))
-
+        log(paste0("ID SGPV ", id, 
+        " iniciando validacao de arquivos de entrada ", diretorio_caso))
+        ERROR_CODE <- 999
+        error_cb <- function(cond) {
+            ERROR_CODE
+        }
+        cod <- tryCatch(smapOnsR::executa_caso_oficial(diretorio_caso), error=error_cb)
+        if (is.null(cod)) {
+            msg <- "sucesso"
+            cod <- 0
+        } else {
+            msg <- "erro na execucao"
+        }
+        
         # Limpar a rodada da lista de rodadas
-        PORT <- as.numeric(Sys.getenv("PORT"))
         httr::POST(paste0("http://localhost:", PORT,"/limpar"), body = list(idSGPV = id))
-
         # chamar o callback no final da execução
-        httr::GET(url_callback)
+        httr::POST(url_callback, body = list(idSGPV = id, msg=msg, cod=cod), encode = "json")
 
         # Retorna qualquer coisa por enquanto
-        saida <- "sucesso"
+        saida <- msg
     } else {
         # Limpar a rodada da lista de rodadas
-        PORT <- as.numeric(Sys.getenv("PORT"))
-
         httr::POST(paste0("http://localhost:", PORT,"/limpar"), body = list(idSGPV = id))
         saida <- "falha"
 
         # chamar o callback no final da execução
-        httr::GET(url_callback)
+        httr::POST(url_callback, body = list(idSGPV = id, msg="diretorio nao encontrado", cod=191), encode = "json")
     }
     saida
 }
