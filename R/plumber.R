@@ -3,7 +3,7 @@
 future::plan("multisession")
 
 log <- function(msg) {
-    write.table(paste0("[", Sys.time(), "]  [SMAP/ONS] [RSERV] " , msg ), 
+    write.table(paste0("[", format(Sys.time(), "%Y-%m-%d %H:%M:%S"), "]  [SMAP/ONS] [RSERV] ", msg),
         file = LOG,quote = FALSE, row.names = FALSE, col.names = FALSE, append = TRUE)
 }
 
@@ -43,6 +43,9 @@ function(req, res) {
             lista_rodadas[dir_base] <- as.character(id)
         }
     }
+    msg <- paste0("Processos ", lista_rodadas$processos,
+                  " Tamanho da fila: ", lista_rodadas$tamanho_fila)
+    log(msg)
     lista_rodadas
 }
 
@@ -75,7 +78,7 @@ function(req, res) {
             sucesso <- FALSE
             execucao <- list(
                 cod = "-2",
-                msg = "Diretorio em execucao",
+                msg = paste0("Diretorio em execucao pelo idSGPV=", database$idSGPV[database$dirBase == diretorio_caso]),
                 idSGPV = id
             )
         }
@@ -89,6 +92,8 @@ function(req, res) {
                 idSGPV = id
             )
         }
+        log(paste0("[REQ] [ERRO] Enviando resposta sincrona ao SGPV: ", 
+                "{'cod': ", execucao$cod, " 'msg': ", execucao$msg, "' idSGPV': ", execucao$idSGPV, "}"))
     }
     
     if (sucesso) {
@@ -103,18 +108,18 @@ function(req, res) {
             id,
             diretorio_caso,
             url_callback,
-            fut$workers[[fut$node]]$session_info$process$pid
+            pid = fut$workers[[fut$node]]$session_info$process$pid
         )
         execucao <- list(
             cod = "0",
             msg = "requisicao recebida com sucesso",
             idSGPV = id
         )
-    }
-
-    log(paste0("[REQ] Enviando resposta sincrona ao SGPV: ", 
+        log(paste0("[REQ] Enviando resposta sincrona ao SGPV: ",
                 "{'cod': ", execucao$cod, "'msg': ", execucao$msg, "'idSGPV': ", execucao$idSGPV, "}"))
 
+    }
+    
     execucao
 }
 
@@ -134,6 +139,7 @@ function(req, res) {
                 msg = paste0("idSGPV ", id, " nao encontrado"),
                 idSGPV = id
             )
+            msg <- paste0("[ERRO] [ABORTAR] idSGPV ", abortar$idSGPV, " nao encontrado")
         }
     # 2 - Se o JSON está mal formatado
         if (!is.character(id)) {
@@ -143,6 +149,7 @@ function(req, res) {
                 msg = paste0("Erro ao decodificar mensagem: idSGPV = ", as.character(id)),
                 idSGPV = id
             )
+            msg <- paste0("[ERRO] [ABORTAR] Erro ao decodificar mensagem: idSGPV = ", as.character(id) )
         }
     } else {
     # 1 - Se nao existe uma rodada com o mesmo idSGPV
@@ -152,11 +159,13 @@ function(req, res) {
             msg = paste0("idSGPV ", id, " nao encontrado"),
             idSGPV = id
         )
+        msg <- paste0("[ERRO] [ABORTAR] idSGPV ", abortar$idSGPV, " nao encontrado")
     }
     
     if (sucesso) {
         # TODO - abortar a thread que está em execução paralela
         id <- req$argsBody$idSGPV
+        thread_id <- database[database$idSGPV == id, "pid"]
         stop_future(database[database$idSGPV == id, "pid"])
 
         # Registra que não existe mais o ID
@@ -166,8 +175,9 @@ function(req, res) {
             msg = "requisicao recebida com sucesso",
             idSGPV = id
         )
+        msg <- paste0("[ABORTAR] Thread ", thread_id, " abortada com sucesso")
     }
-
+    log(msg)
     abortar
 }
 
@@ -211,7 +221,7 @@ deleta_rodada <- function(id) {
 executa_smap <- function(id, diretorio_caso, url_callback) {
     # Simula uma rodada de SMAP
     log(paste0("[REQ] Requisicao recebida com sucesso IdSGPV=", id))
-
+    thread_id <- Sys.getpid()
     if (dir.exists(diretorio_caso)) {
         log(paste0("ID SGPV ", id, 
         " iniciando validacao de arquivos de entrada ", diretorio_caso))
@@ -226,9 +236,12 @@ executa_smap <- function(id, diretorio_caso, url_callback) {
         } else {
             msg <- "erro na execucao"
         }
+        log(paste0("[REDE] Enviando mensagem assincrona ao SGPV: ",
+                    "{'msg' :'", msg, "' , 'cod':,", cod, "'idSGPV':'", id, "'}"))
         
         # Limpar a rodada da lista de rodadas
-        httr::POST(paste0("http://localhost:", PORT,"/limpar"), body = list(idSGPV = id))
+        log(paste0(" Thread ID ", thread_id, ": removendo idSGPV=", id, " da fila de execucao"))
+        httr::POST(paste0("http://localhost:", PORT, "/limpar"), body = list(idSGPV = id))
         # chamar o callback no final da execução
         httr::POST(url_callback, body = list(idSGPV = id, msg=msg, cod=cod), encode = "json")
 
@@ -236,12 +249,16 @@ executa_smap <- function(id, diretorio_caso, url_callback) {
         saida <- msg
     } else {
         # Limpar a rodada da lista de rodadas
+        log(paste0(" Thread ID ", thread_id, ": removendo idSGPV=", id, " da fila de execucao"))
         httr::POST(paste0("http://localhost:", PORT,"/limpar"), body = list(idSGPV = id))
         saida <- "falha"
 
         # chamar o callback no final da execução
+        log(paste0("[REDE] [ERRO] Enviando mensagem assincrona ao SGPV: ",
+                    "{'msg' :'", msg, "' , 'cod':,", cod, "'idSGPV':'", id, "'}"))
         httr::POST(url_callback, body = list(idSGPV = id, msg="diretorio nao encontrado", cod=191), encode = "json")
     }
+
     saida
 }
 
