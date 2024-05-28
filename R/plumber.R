@@ -244,7 +244,7 @@ executa_smap <- function(id, diretorio_caso, url_callback) {
         httr::POST(paste0("http://localhost:", PORT, "/limpar"), body = list(idSGPV = id))
         # chamar o callback no final da execução
         httr::POST(url_callback, body = list(idSGPV = id, msg=msg, cod=cod), encode = "json")
-
+        log(paste0("[REDE] Enviando callback ao SGPV: ", url_callback))
         # Retorna qualquer coisa por enquanto
         saida <- msg
     } else {
