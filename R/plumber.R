@@ -4,7 +4,8 @@ future::plan("multisession")
 
 log <- function(msg) {
     write.table(paste0("[", format(Sys.time(), "%Y-%m-%d %H:%M:%S"), "]  [SMAP/ONS] [RSERV] ", msg),
-        file = LOG,quote = FALSE, row.names = FALSE, col.names = FALSE, append = TRUE)
+        file = LOG, quote = FALSE, row.names = FALSE, col.names = FALSE, append = TRUE
+    )
 }
 
 # TODO - esta forma está bem ruim, podemos criar uma classe "Rodada"
@@ -43,8 +44,10 @@ function(req, res) {
             lista_rodadas[dir_base] <- as.character(id)
         }
     }
-    msg <- paste0("Processos ", lista_rodadas$processos,
-                  " Tamanho da fila: ", lista_rodadas$tamanho_fila)
+    msg <- paste0(
+        "Processos ", lista_rodadas$processos,
+        " Tamanho da fila: ", lista_rodadas$tamanho_fila
+    )
     log(msg)
     lista_rodadas
 }
@@ -59,7 +62,7 @@ function(req, res) {
     id <- req$argsBody$idSGPV
     diretorio_caso <- req$argsBody$dirBase
     url_callback <- req$argsBody$urlCallback
-    
+
     sucesso <- TRUE
 
     if (nrow(database) > 0) {
@@ -83,7 +86,7 @@ function(req, res) {
             )
         }
 
-         # 4 - Se o JSON está mal formatado
+        # 4 - Se o JSON está mal formatado
         if (!is.character(id) | !is.character(diretorio_caso)) {
             sucesso <- FALSE
             execucao <- list(
@@ -92,10 +95,12 @@ function(req, res) {
                 idSGPV = id
             )
         }
-        log(paste0("[REQ] [ERRO] Enviando resposta sincrona ao SGPV: ", 
-                "{'cod': ", execucao$cod, " 'msg': ", execucao$msg, "' idSGPV': ", execucao$idSGPV, "}"))
+        log(paste0(
+            "[REQ] [ERRO] Enviando resposta sincrona ao SGPV: ",
+            "{'cod': ", execucao$cod, " 'msg': ", execucao$msg, "' idSGPV': ", execucao$idSGPV, "}"
+        ))
     }
-    
+
     if (sucesso) {
         # Dispara o processo de execução da rodada usando
         # uma thread separada
@@ -115,11 +120,12 @@ function(req, res) {
             msg = "requisicao recebida com sucesso",
             idSGPV = id
         )
-        log(paste0("[REQ] Enviando resposta sincrona ao SGPV: ",
-                "{'cod': ", execucao$cod, "'msg': ", execucao$msg, "'idSGPV': ", execucao$idSGPV, "}"))
-
+        log(paste0(
+            "[REQ] Enviando resposta sincrona ao SGPV: ",
+            "{'cod': ", execucao$cod, "'msg': ", execucao$msg, "'idSGPV': ", execucao$idSGPV, "}"
+        ))
     }
-    
+
     execucao
 }
 
@@ -131,7 +137,7 @@ function(req, res) {
     sucesso <- TRUE
     # Validações principais:
     if (nrow(database) > 0) {
-    # 1 - Se nao existe uma rodada com o mesmo idSGPV
+        # 1 - Se nao existe uma rodada com o mesmo idSGPV
         if (!any(id == database$idSGPV)) {
             sucesso <- FALSE
             abortar <- list(
@@ -141,7 +147,7 @@ function(req, res) {
             )
             msg <- paste0("[ERRO] [ABORTAR] idSGPV ", abortar$idSGPV, " nao encontrado")
         }
-    # 2 - Se o JSON está mal formatado
+        # 2 - Se o JSON está mal formatado
         if (!is.character(id)) {
             sucesso <- FALSE
             execucao <- list(
@@ -149,10 +155,10 @@ function(req, res) {
                 msg = paste0("Erro ao decodificar mensagem: idSGPV = ", as.character(id)),
                 idSGPV = id
             )
-            msg <- paste0("[ERRO] [ABORTAR] Erro ao decodificar mensagem: idSGPV = ", as.character(id) )
+            msg <- paste0("[ERRO] [ABORTAR] Erro ao decodificar mensagem: idSGPV = ", as.character(id))
         }
     } else {
-    # 1 - Se nao existe uma rodada com o mesmo idSGPV
+        # 1 - Se nao existe uma rodada com o mesmo idSGPV
         sucesso <- FALSE
         abortar <- list(
             cod = "-4",
@@ -161,7 +167,7 @@ function(req, res) {
         )
         msg <- paste0("[ERRO] [ABORTAR] idSGPV ", abortar$idSGPV, " nao encontrado")
     }
-    
+
     if (sucesso) {
         # TODO - abortar a thread que está em execução paralela
         id <- req$argsBody$idSGPV
@@ -197,20 +203,6 @@ function(req, res) {
     limpar
 }
 
-
-# ==============================================================================
-# Funções auxiliares, para teste e debug
-
-
-#* Endpoint de teste para o callback do servidor
-#* @post /callback
-#* @serializer unboxedJSON
-function(req, res) {
-    print("CALLBACK")
-    print(req$argsBody)
-    "sucesso"
-}
-
 #* Deletar uma rodadada localmente
 #* @delete /deleta_rodada
 deleta_rodada <- function(id) {
@@ -222,43 +214,72 @@ executa_smap <- function(id, diretorio_caso, url_callback) {
     # Simula uma rodada de SMAP
     log(paste0("[REQ] Requisicao recebida com sucesso IdSGPV=", id))
     thread_id <- Sys.getpid()
+    error_cod <- 999
+    error_cb <- function(cond) {
+        log(paste0("[ERRO] [idSGPV=", id, "] ", conditionMessage(cond)))
+        return(error_cod)
+    }
     if (dir.exists(diretorio_caso)) {
-        log(paste0("ID SGPV ", id, 
-        " iniciando validacao de arquivos de entrada ", diretorio_caso))
-        ERROR_CODE <- 999
-        error_cb <- function(cond) {
-            ERROR_CODE
-        }
-        cod <- tryCatch(smapOnsR::executa_caso_oficial(diretorio_caso), error=error_cb)
+        log(paste0(
+            "ID SGPV ", id,
+            " iniciando validacao de arquivos de entrada ", diretorio_caso
+        ))
+        cod <- tryCatch(smapOnsR::executa_caso_oficial(diretorio_caso), error = error_cb)
         if (is.null(cod)) {
             msg <- "sucesso"
             cod <- 0
         } else {
             msg <- "erro na execucao"
         }
-        log(paste0("[REDE] Enviando mensagem assincrona ao SGPV: ",
-                    "{'msg' :'", msg, "' , 'cod':,", cod, "'idSGPV':'", id, "'}"))
-        
-        # Limpar a rodada da lista de rodadas
-        log(paste0(" Thread ID ", thread_id, ": removendo idSGPV=", id, " da fila de execucao"))
-        httr::POST(paste0("http://localhost:", PORT, "/limpar"), body = list(idSGPV = id))
+        log(paste0(
+            "[REDE] Enviando mensagem assincrona ao SGPV: ",
+            "{'msg': '", msg, "', 'cod': ", cod, ", 'idSGPV': '", id, "'}"
+        ))
+
         # chamar o callback no final da execução
-        httr::POST(url_callback, body = list(idSGPV = id, msg=msg, cod=cod), encode = "json")
         log(paste0("[REDE] Enviando callback ao SGPV: ", url_callback))
+        res <- tryCatch(httr::POST(url_callback, body = list(idSGPV = id, msg = msg, cod = cod), encode = "json"), error = error_cb)
+        if (is.numeric(res)) {
+            log(paste0("[ERRO] [REDE] Erro ao enviar callback ao SGPV"))
+        } else {
+            log(paste0("[REDE] Status do callback ao SGPV: ", httr::status_code(res)))
+        }
+
+        # Limpar a rodada da lista de rodadas
+        log(paste0("Thread ID ", thread_id, ": removendo idSGPV=", id, " da fila de execucao"))
+        res <- tryCatch(httr::POST(paste0("http://", HOST, ":", PORT, "/limpar"), body = list(idSGPV = id)), error = error_cb)
+        if (is.numeric(res)) {
+            log(paste0("[ERRO] [REDE] Erro ao limpar a fila"))
+        } else {
+            log(paste0("[REDE] Status da limpeza da fila: ", httr::status_code(res)))
+        }
+
         # Retorna qualquer coisa por enquanto
         saida <- msg
     } else {
-        # Limpar a rodada da lista de rodadas
-        log(paste0(" Thread ID ", thread_id, ": removendo idSGPV=", id, " da fila de execucao"))
-        httr::POST(paste0("http://localhost:", PORT,"/limpar"), body = list(idSGPV = id))
-        saida <- "falha"
 
         # chamar o callback no final da execução
-        log(paste0("[REDE] [ERRO] Enviando mensagem assincrona ao SGPV: ",
-                    "{'msg' :'", msg, "' , 'cod':,", cod, "'idSGPV':'", id, "'}"))
-        httr::POST(url_callback, body = list(idSGPV = id, msg="diretorio nao encontrado", cod=191), encode = "json")
-    }
+        log(paste0("[REDE] Enviando callback ao SGPV: ", url_callback))
+        res <- tryCatch(httr::POST(url_callback, body = list(idSGPV = id, msg = "diretorio nao encontrado", cod = 191), encode = "json"), error = error_cb)
+        if (is.numeric(res)) {
+            log(paste0("[ERRO] [REDE] Erro ao enviar callback ao SGPV"))
+        } else {
+            log(paste0("[REDE] Status do callback ao SGPV: ", httr::status_code(res)))
+        }
 
+        # Limpar a rodada da lista de rodadas
+        log(paste0("Thread ID ", thread_id, ": removendo idSGPV=", id, " da fila de execucao"))
+        res <- tryCatch(httr::POST(paste0("http://", HOST, ":", PORT, "/limpar"), body = list(idSGPV = id)), error = error_cb)
+        if (is.numeric(res)) {
+            log(paste0("[ERRO] [REDE] Erro ao limpar a fila"))
+        } else {
+            log(paste0("[REDE] Status da limpeza da fila: ", httr::status_code(res)))
+        }
+
+        # Retorna qualquer coisa por enquanto
+        saida <- "falha"
+    }
+    log(paste0("Finalizando execucao da rodada idSGPV=", id))
     saida
 }
 
