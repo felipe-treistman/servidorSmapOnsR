@@ -62,6 +62,7 @@ function(req, res) {
     id <- req$argsBody$idSGPV
     diretorio_caso <- req$argsBody$dirBase
     url_callback <- req$argsBody$urlCallback
+    formato <- if("formato" %in% names(req$argsQuery)) req$argsQuery$formato else "txt"
 
     sucesso <- TRUE
 
@@ -86,26 +87,46 @@ function(req, res) {
             )
         }
 
-        # 4 - Se o JSON está mal formatado
-        if (!is.character(id) | !is.character(diretorio_caso)) {
-            sucesso <- FALSE
-            execucao <- list(
-                cod = "-3",
-                msg = paste0("Erro ao decodificar mensagem: idSGPV = ", as.character(id), " / dirBase = ", diretorio_caso),
-                idSGPV = id
-            )
-        }
         log(paste0(
             "[REQ] [ERRO] Enviando resposta sincrona ao SGPV: ",
             "{'cod': ", execucao$cod, " 'msg': ", execucao$msg, "' idSGPV': ", execucao$idSGPV, "}"
         ))
     }
 
+    
+    # 4 - Se o JSON está mal formatado
+    if (!is.character(id) | !is.character(diretorio_caso)) {
+        sucesso <- FALSE
+        execucao <- list(
+            cod = "-3",
+            msg = paste0("Erro ao decodificar mensagem: idSGPV = ", as.character(id), " / dirBase = ", diretorio_caso),
+            idSGPV = id
+        )
+    }
+
+    # 5 - Se o formato é csv ou txt
+    if (!(formato %in% list("txt", "csv"))) {
+        sucesso <- FALSE
+        execucao <- list(
+            cod = "-4",
+            msg = paste0("O formato informado deve ser txt ou csv: formato = ", formato),
+            idSGPV = id
+        )
+    }
+
+    if (!sucesso) {
+        log(paste0(
+            "[REQ] [ERRO] Enviando resposta sincrona ao SGPV: ",
+            "{'cod': ", execucao$cod, " 'msg': ", execucao$msg, "' idSGPV': ", execucao$idSGPV, "}"
+        ))
+    }
+
+
     if (sucesso) {
         # Dispara o processo de execução da rodada usando
         # uma thread separada
         fut <- future::future({
-            executa_smap(id, diretorio_caso, url_callback)
+            executa_smap(id, diretorio_caso, url_callback, formato)
         })
 
         # Registra o que está em execução
@@ -210,7 +231,8 @@ deleta_rodada <- function(id) {
     database <<- subset(database, idSGPV != id)
 }
 
-executa_smap <- function(id, diretorio_caso, url_callback) {
+executa_smap <- function(id, diretorio_caso, url_callback, formato) {
+
     # Simula uma rodada de SMAP
     log(paste0("[REQ] Requisicao recebida com sucesso IdSGPV=", id))
     thread_id <- Sys.getpid()
@@ -224,7 +246,9 @@ executa_smap <- function(id, diretorio_caso, url_callback) {
             "ID SGPV ", id,
             " iniciando validacao de arquivos de entrada ", diretorio_caso
         ))
-        cod <- tryCatch(smapOnsR::executa_caso_oficial(diretorio_caso), error = error_cb)
+        smap_func <- if(formato=="csv") smapOnsR::executa_caso_novo else smapOnsR::executa_caso_oficial
+        print(smap_func)
+        cod <- tryCatch(smap_func(diretorio_caso), error = error_cb)
         if (is.null(cod)) {
             msg <- "sucesso"
             cod <- 0
