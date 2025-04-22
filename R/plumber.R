@@ -121,20 +121,18 @@ function(req, res) {
         ))
     }
 
-
     if (sucesso) {
         # Dispara o processo de execução da rodada usando
         # uma thread separada
         fut <- future::future({
             executa_smap(id, diretorio_caso, url_callback, formato)
         })
-
         # Registra o que está em execução
         database[nrow(database) + 1, ] <<- list(
             id,
             diretorio_caso,
             url_callback,
-            pid = fut$workers[[fut$node]]$session_info$process$pid
+            pid = fut$backend$workers[[fut$node]]$session_info$process$pid
         )
         execucao <- list(
             cod = "0",
@@ -246,8 +244,7 @@ executa_smap <- function(id, diretorio_caso, url_callback, formato) {
             "ID SGPV ", id,
             " iniciando validacao de arquivos de entrada ", diretorio_caso
         ))
-        smap_func <- if(formato=="csv") smapOnsR::executa_caso_novo else smapOnsR::executa_caso_oficial
-        print(smap_func)
+        smap_func <- if(formato=="csv") smapOnsR::executa_caso_oficial_v2 else smapOnsR::executa_caso_oficial
         cod <- tryCatch(smap_func(diretorio_caso), error = error_cb)
         if (is.null(cod)) {
             msg <- "sucesso"
