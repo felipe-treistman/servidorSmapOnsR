@@ -5,7 +5,7 @@
 Rest API do smapOnsR
 
 ## Instalação
-
+ 
 Os seguintes pacotes devem ser instalados:
 
 ```r
@@ -14,6 +14,7 @@ install.packages("plumber")
 install.packages("httr")
 install.packages("future")
 devtools::install_github("ONSBR/smapOnsR")
+
 ```
 
 Para instalar uma versão específica de algum pacote oficial, pode ser usada a função `remotes::install_version`. Já para instalar uma versão específica do SMAP, por exemplo a `v1.3.2`, pode ser feito:
